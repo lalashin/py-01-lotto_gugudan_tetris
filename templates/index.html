@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Flask 미니 프로젝트</title>
+
+<style>
+body {
+    background:#f4f6f8;
+    font-family: Arial, sans-serif;
+    padding:40px;
+}
+.card {
+    background:white;
+    max-width:900px;
+    margin:30px auto;
+    padding:30px;
+    border-radius:14px;
+    box-shadow:0 4px 12px rgba(0,0,0,0.1);
+}
+.section-title {
+    border-bottom:2px solid #eee;
+    padding-bottom:10px;
+    margin-bottom:20px;
+}
+button {
+    padding:8px 16px;
+    margin-top:10px;
+    cursor:pointer;
+}
+input {
+    padding:6px;
+    margin-top:10px;
+}
+.numbers {
+    display:flex;
+    justify-content:center;
+    gap:8px;
+}
+.ball {
+    width:40px;
+    height:40px;
+    border-radius:50%;
+    background:#4f46e5;
+    color:white;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-weight:bold;
+}
+table {
+    width:100%;
+    margin-top:20px;
+    border-collapse:collapse;
+}
+th, td {
+    border-bottom:1px solid #ddd;
+    padding:10px;
+    text-align:center;
+}
+.notice {
+    font-size:12px;
+    color:#666;
+}
+
+/*테트리스*/
+
+h1 { margin: 0 0 10px 0; font-size: 2em; }
+
+    /* 버튼 컨테이너 */
+    .controls-ui {
+      margin-bottom: 15px;
+      display: flex;
+      gap: 10px;
+    }
+
+    button.tetris-btn {
+      padding: 10px 20px;
+      font-size: 1rem;
+      cursor: pointer;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      transition: background 0.3s;
+    }
+
+    button.tetris-btn:hover { background-color: #45a049; }
+
+    /* 종료 버튼 스타일 다르게 */
+    #stop-btn { background-color: #f44336; }
+    #stop-btn:hover { background-color: #d32f2f; }
+
+    #game-container {
+      position: relative;
+      border: 2px solid #fff;
+    }
+
+    canvas {
+      display: block;
+      background-color: #000;
+    }
+
+    #score { font-size: 1.5em; margin-bottom: 10px; }
+
+    /* 게임 오버 및 대기 화면 메시지 */
+    #message-overlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.85);
+      padding: 20px;
+      text-align: center;
+      border: 2px solid #fff;
+      display: flex; /* 초기엔 보이게 설정 */
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+</style>
+</head>
+<body>
+
+<!-- ================= 로또 ================= -->
+<div class="card">
+<h2 class="section-title">🎯 로또 번호 생성기</h2>
+
+<form method="POST">
+<input type="hidden" name="form_type" value="lotto">
+
+<label><input type="radio" name="strategy" value="random" checked> 🎲 완전 랜덤</label><br>
+<label><input type="radio" name="strategy" value="no_birthday"> 📅 생일 숫자 제외</label><br>
+<label><input type="radio" name="strategy" value="spread"> 📈 고른 분산 전략</label><br><br>
+
+<button name="action" value="single">🎲 1회 생성</button>
+<button name="action" value="auto">🚀 10회 자동 생성</button>
+</form>
+
+{% if lotto_results %}
+<table>
+<tr>
+<th>회차</th>
+<th>번호</th>
+</tr>
+{% for row in lotto_results %}
+<tr>
+<td>{{ loop.index }}</td>
+<td>
+<div class="numbers">
+{% for n in row %}
+<div class="ball">{{ n }}</div>
+{% endfor %}
+</div>
+</td>
+</tr>
+{% endfor %}
+</table>
+
+<p><strong>이론적 1등 당첨 확률:</strong>
+{{ "%.8f"|format(probability) }} %
+</p>
+
+<p class="notice">
+※ 전략은 번호 생성 방식의 차이만 있을 뿐 실제 당첨 확률은 동일합니다.
+</p>
+{% endif %}
+</div>
+
+<!-- ================= 구구단 ================= -->
+<div class="card">
+<h2 class="section-title">✖️ 구구단 게임</h2>
+
+<p>{{ game_message }}</p>
+
+<form method="POST">
+<input type="hidden" name="form_type" value="gugudan">
+
+{% if not game_active %}
+    <button name="action" value="start">▶ 게임시작</button>
+{% else %}
+    <p><strong>{{ a }} × {{ b }} = ?</strong></p>
+
+    <input type="hidden" name="a" value="{{ a }}">
+    <input type="hidden" name="b" value="{{ b }}">
+    <input type="hidden" name="game_active" value="true">
+
+    <input type="text" name="answer" placeholder="정답 또는 q 입력" required>
+    <button name="action" value="answer">제출</button>
+{% endif %}
+</form>
+
+{% if feedback %}
+<p><strong>{{ feedback }}</strong></p>
+{% endif %}
+</div>
+
+<!-- <div class="card">
+  <h2 class="section-title">🟦 테트리스 게임</h2>
+
+  <button onclick="startTetris()">▶ 테트리스 게임 시작</button>
+  <button onclick="stopTetris()">■ 게임 종료</button>
+
+  <canvas id="tetrisCanvas"
+          width="240"
+          height="400"
+          style="display:none; background:#111; margin-top:20px;">
+  </canvas>
+</div> -->
+<!-- <div class="card">
+  <h2>🟦 단순 테트리스</h2>
+  <button onclick="startTetris()">▶ 게임 시작</button>
+  <button onclick="stopTetris()">■ 게임 종료</button>
+  <canvas id="tetrisCanvas" width="240" height="400" style="display:none; background:#111; margin-top:20px;"></canvas>
+</div> -->
+
+<!-- <script>
+const canvas = document.getElementById("tetrisCanvas");
+const ctx = canvas.getContext("2d");
+ctx.scale(20,20);
+
+const colors = ["cyan","blue","orange","yellow","green","purple","red"];
+const arena = Array.from({length:20},()=> Array(12).fill(0));
+
+const pieces = [
+  [[1,1,1],[0,1,0]], // T
+  [[1,1],[1,1]],     // O
+  [[0,1,1],[1,1,0]], // S
+  [[1,1,0],[0,1,1]], // Z
+  [[1,1,1,1]],       // I
+  [[1,0,0],[1,1,1]], // L
+  [[0,0,1],[1,1,1]]  // J
+];
+
+let player = {pos:{x:4,y:0}, matrix:null, color:"cyan"};
+let dropCounter=0;
+let lastTime=0;
+let intervalId=null;
+
+// ------------------ 블록 생성 ------------------
+function resetPlayer(){
+  const index = Math.floor(Math.random()*pieces.length);
+  player.matrix = pieces[index].map(row=>[...row]); // 깊은 복사
+  player.color = colors[index];
+  player.pos.y = 0;
+  player.pos.x = 4;
+}
+
+// ------------------ 회전 ------------------
+function rotate(matrix){
+  const N = matrix.length;
+  const result = Array.from({length:N},()=> Array(N).fill(0));
+  for(let y=0;y<N;y++){
+    for(let x=0;x<N;x++){
+      result[x][N-1-y] = matrix[y][x];
+    }
+  }
+  return result;
+}
+
+// ------------------ 그리기 ------------------
+function drawMatrix(matrix, offset, color){
+  matrix.forEach((row,y)=>{
+    row.forEach((value,x)=>{
+      if(value){
+        ctx.fillStyle=color;
+        ctx.fillRect(x+offset.x, y+offset.y,1,1);
+      }
+    });
+  });
+}
+
+function draw(){
+  ctx.fillStyle="#000";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  drawMatrix(player.matrix, player.pos, player.color);
+
+  for(let y=0;y<arena.length;y++){
+    for(let x=0;x<arena[y].length;x++){
+      if(arena[y][x]!==0){
+        ctx.fillStyle=colors[arena[y][x]-1];
+        ctx.fillRect(x,y,1,1);
+      }
+    }
+  }
+}
+
+// ------------------ 충돌 체크 ------------------
+function collide(){
+  const m = player.matrix;
+  const o = player.pos;
+  for(let y=0;y<m.length;y++){
+    for(let x=0;x<m[y].length;x++){
+      if(m[y][x]!==0 && (arena[y+o.y] && arena[y+o.y][x+o.x])!==0){
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// ------------------ 블록 고정 ------------------
+function merge(){
+  player.matrix.forEach((row,y)=>{
+    row.forEach((value,x)=>{
+      if(value){
+        arena[y+player.pos.y][x+player.pos.x] = colors.indexOf(player.color)+1;
+      }
+    });
+  });
+}
+
+// ------------------ 블록 이동 ------------------
+function playerDrop(){
+  player.pos.y++;
+  if(collide()){
+    player.pos.y--;
+    merge();
+    resetPlayer(); // 바닥 닿으면 새 블록 생성
+  }
+}
+
+// ------------------ 키보드 이벤트 ------------------
+document.addEventListener("keydown", event=>{
+  if(!player.matrix) return;
+
+  if(event.key==="ArrowLeft"){
+    player.pos.x--;
+    if(collide()) player.pos.x++;
+  }else if(event.key==="ArrowRight"){
+    player.pos.x++;
+    if(collide()) player.pos.x--;
+  }else if(event.key==="ArrowDown"){
+    playerDrop();
+  }else if(event.key===" "){ // 스페이스바 -> 회전만
+    const rotated = rotate(player.matrix.map(row=>[...row])); // 깊은 복사
+    const oldMatrix = player.matrix;
+    player.matrix = rotated;
+    if(collide()) player.matrix = oldMatrix; // 충돌 시 원상복귀
+  }
+});
+
+// ------------------ 게임 루프 ------------------
+function update(time=0){
+  const delta = time-lastTime;
+  lastTime=time;
+  dropCounter+=delta;
+  if(dropCounter>500){
+    playerDrop();
+    dropCounter=0;
+  }
+  draw();
+  intervalId=requestAnimationFrame(update);
+}
+
+// ------------------ 시작/종료 ------------------
+function startTetris(){
+  canvas.style.display="block";
+  resetPlayer();
+  update();
+}
+
+function stopTetris(){
+  cancelAnimationFrame(intervalId);
+  intervalId=null;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  canvas.style.display="none";
+  for(let y=0;y<arena.length;y++) arena[y].fill(0);
+}
+</script> -->
+
+<div class="card">
+   <h1>Tetris</h1>
+  
+  <div class="controls-ui">
+    <button class="tetris-btn" id="start-btn" onclick="startGame()">게임 시작</button>
+    <button class="tetris-btn" id="stop-btn" onclick="endGame()">게임 종료</button>
+  </div>
+
+  <div id="score">점수: 0</div>
+
+  <div id="game-container">
+    <canvas width="320" height="640" id="game"></canvas>
+    
+    <div id="message-overlay">
+      <h2 id="overlay-title">Ready?</h2>
+      <p id="overlay-desc">게임 시작 버튼을 눌러주세요</p>
+    </div>
+  </div>
+</div>
+
+<script>
+    // --- 변수 및 설정 ---
+    const canvas = document.getElementById('game');
+    const context = canvas.getContext('2d');
+    const grid = 32;
+    const tetrominoSequence = [];
+    const playfield = [];
+
+    // 게임 상태 변수
+    let count = 0;
+    let tetromino = null;
+    let rAF = null; 
+    let gameOver = false;
+    let score = 0;
+    let isGameActive = false; // 게임 진행 중 여부 체크
+
+    // 보드 초기화
+    for (let row = -2; row < 20; row++) {
+      playfield[row] = [];
+      for (let col = 0; col < 10; col++) {
+        playfield[row][col] = 0;
+      }
+    }
+
+    // 테트로미노 데이터
+    const tetrominoes = {
+      'I': [[0,0,0,0], [1,1,1,1], [0,0,0,0], [0,0,0,0]],
+      'J': [[1,0,0], [1,1,1], [0,0,0]],
+      'L': [[0,0,1], [1,1,1], [0,0,0]],
+      'O': [[1,1], [1,1]],
+      'S': [[0,1,1], [1,1,0], [0,0,0]],
+      'Z': [[1,1,0], [0,1,1], [0,0,0]],
+      'T': [[0,1,0], [1,1,1], [0,0,0]]
+    };
+
+    const colors = {
+      'I': 'cyan', 'O': 'yellow', 'T': 'purple', 
+      'S': 'green', 'Z': 'red', 'J': 'blue', 'L': 'orange'
+    };
+
+    // --- 유틸리티 함수 ---
+    function getRandomInt(min, max) {
+      min = Math.ceil(min);
+      max = Math.floor(max);
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function generateSequence() {
+      const sequence = ['I', 'J', 'L', 'O', 'S', 'T', 'Z'];
+      while (sequence.length) {
+        const rand = getRandomInt(0, sequence.length - 1);
+        const name = sequence.splice(rand, 1)[0];
+        tetrominoSequence.push(name);
+      }
+    }
+
+    function getNextTetromino() {
+      if (tetrominoSequence.length === 0) generateSequence();
+      const name = tetrominoSequence.pop();
+      const matrix = tetrominoes[name];
+      const col = playfield[0].length / 2 - Math.ceil(matrix[0].length / 2);
+      const row = name === 'I' ? -1 : -2;
+      return { name, matrix, row, col };
+    }
+
+    function rotate(matrix) {
+      const N = matrix.length - 1;
+      return matrix.map((row, i) => row.map((val, j) => matrix[N - j][i]));
+    }
+
+    function isValidMove(matrix, cellRow, cellCol) {
+      for (let row = 0; row < matrix.length; row++) {
+        for (let col = 0; col < matrix[row].length; col++) {
+          if (matrix[row][col] && (
+              cellCol + col < 0 ||
+              cellCol + col >= playfield[0].length ||
+              cellRow + row >= playfield.length ||
+              playfield[cellRow + row][cellCol + col])
+            ) return false;
+        }
+      }
+      return true;
+    }
+
+    function placeTetromino() {
+      for (let row = 0; row < tetromino.matrix.length; row++) {
+        for (let col = 0; col < tetromino.matrix[row].length; col++) {
+          if (tetromino.matrix[row][col]) {
+            if (tetromino.row + row < 0) return showGameOver();
+            playfield[tetromino.row + row][tetromino.col + col] = tetromino.name;
+          }
+        }
+      }
+
+      for (let row = playfield.length - 1; row >= 0; ) {
+        if (playfield[row].every(cell => !!cell)) {
+          score += 100;
+          document.getElementById('score').innerText = `점수: ${score}`;
+          for (let r = row; r >= 0; r--) {
+            for (let c = 0; c < playfield[r].length; c++) {
+              playfield[r][c] = playfield[r-1][c];
+            }
+          }
+        } else {
+          row--;
+        }
+      }
+      tetromino = getNextTetromino();
+    }
+
+    function showGameOver() {
+      cancelAnimationFrame(rAF);
+      gameOver = true;
+      isGameActive = false;
+      
+      const overlay = document.getElementById('message-overlay');
+      document.getElementById('overlay-title').innerText = "GAME OVER";
+      document.getElementById('overlay-desc').innerText = `최종 점수: ${score}`;
+      overlay.style.display = 'flex';
+    }
+
+    // --- 메인 루프 ---
+    function loop() {
+      rAF = requestAnimationFrame(loop);
+      context.clearRect(0,0,canvas.width,canvas.height);
+
+      // 보드 그리기
+      for (let row = 0; row < 20; row++) {
+        for (let col = 0; col < 10; col++) {
+          if (playfield[row][col]) {
+            const name = playfield[row][col];
+            context.fillStyle = colors[name];
+            context.fillRect(col * grid, row * grid, grid-1, grid-1);
+          }
+        }
+      }
+
+      if (tetromino) {
+        if (++count > 35) {
+          tetromino.row++;
+          count = 0;
+          if (!isValidMove(tetromino.matrix, tetromino.row, tetromino.col)) {
+            tetromino.row--;
+            placeTetromino();
+          }
+        }
+        context.fillStyle = colors[tetromino.name];
+        for (let row = 0; row < tetromino.matrix.length; row++) {
+          for (let col = 0; col < tetromino.matrix[row].length; col++) {
+            if (tetromino.matrix[row][col]) {
+              context.fillRect((tetromino.col + col) * grid, (tetromino.row + row) * grid, grid-1, grid-1);
+            }
+          }
+        }
+      }
+    }
+
+    // --- 키보드 조작 ---
+    document.addEventListener('keydown', function(e) {
+      // 게임 중이 아니거나 게임 오버 상태면 조작 불가
+      if (gameOver || !isGameActive) return;
+
+      if (e.which === 37) { // Left
+        const col = tetromino.col - 1;
+        if (isValidMove(tetromino.matrix, tetromino.row, col)) tetromino.col = col;
+      }
+      else if (e.which === 39) { // Right
+        const col = tetromino.col + 1;
+        if (isValidMove(tetromino.matrix, tetromino.row, col)) tetromino.col = col;
+      }
+      else if (e.which === 40) { // Down
+        const row = tetromino.row + 1;
+        if (!isValidMove(tetromino.matrix, row, tetromino.col)) {
+          tetromino.row--;
+          placeTetromino();
+          return;
+        }
+        tetromino.row = row;
+      }
+      else if (e.which === 32) { // Space (Rotate)
+        e.preventDefault(); 
+        const matrix = rotate(tetromino.matrix);
+        if (isValidMove(matrix, tetromino.row, tetromino.col)) tetromino.matrix = matrix;
+      }
+    });
+
+    // --- 버튼 기능 ---
+    
+    function startGame() {
+      // 이미 실행 중이면 리셋할지 묻거나, 그냥 리셋 (여기선 바로 리셋 및 시작)
+      if (rAF) cancelAnimationFrame(rAF);
+
+      // 변수 초기화
+      for (let row = -2; row < 20; row++) {
+        for (let col = 0; col < 10; col++) {
+          playfield[row][col] = 0;
+        }
+      }
+      score = 0;
+      count = 0;
+      gameOver = false;
+      isGameActive = true;
+      
+      document.getElementById('score').innerText = '점수: 0';
+      // 오버레이 숨김
+      document.getElementById('message-overlay').style.display = 'none';
+      
+      tetrominoSequence.length = 0;
+      tetromino = getNextTetromino();
+      rAF = requestAnimationFrame(loop);
+      
+      // 포커스를 캔버스나 바디로 돌려서 바로 키보드 입력 가능하게 함
+      document.activeElement.blur();
+    }
+
+    function endGame() {
+      if (!isGameActive) return; // 이미 꺼져있으면 무시
+
+      cancelAnimationFrame(rAF);
+      gameOver = true;
+      isGameActive = false;
+      
+      const overlay = document.getElementById('message-overlay');
+      document.getElementById('overlay-title').innerText = "게임 종료";
+      document.getElementById('overlay-desc').innerText = `플레이 점수: ${score}`;
+      overlay.style.display = 'flex';
+    }
+
+    // 페이지 로드 시 캔버스 배경만 그려두기 (검은색)
+    context.fillStyle = '#000';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+  </script>
+
+
+
+
+</body>
+</html>
